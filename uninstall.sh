@@ -29,8 +29,14 @@ if [ "$PURGE" = 1 ]; then
   echo "==> Removing settings and the pvekiosk user"
   rm -rf /etc/pve-kiosk
   if id pvekiosk >/dev/null 2>&1; then
-    pkill -u pvekiosk 2>/dev/null || true
+    # The kiosk's logind session (and its systemd --user) outlives the service
+    # for a moment; userdel refuses while any of it is still running.
+    loginctl terminate-user pvekiosk 2>/dev/null || true
+    for _ in $(seq 10); do pgrep -u pvekiosk >/dev/null || break; sleep 1; done
+    pkill -KILL -u pvekiosk 2>/dev/null || true
+    sleep 1
     userdel -r pvekiosk 2>/dev/null || userdel pvekiosk
+    rm -rf /var/lib/pvekiosk
   fi
 fi
 
