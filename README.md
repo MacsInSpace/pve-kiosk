@@ -6,6 +6,16 @@ Plug a monitor, keyboard and mouse into your Proxmox host. When it boots you get
 
 It uses [cage](https://github.com/cage-kiosk/cage), a Wayland compositor that runs one app full screen, and Chromium in kiosk mode. There's no desktop environment, display manager or X server, and nothing runs as root.
 
+## Quick install
+
+On the Proxmox host, as root:
+
+```sh
+git clone https://github.com/MacsInSpace/pve-kiosk.git && cd pve-kiosk && ./install.sh
+```
+
+No `git` on a fresh Proxmox install? Run `apt install git` first. Options and details are under [Install](#install).
+
 ## Requirements
 
 - Proxmox VE 8 or 9 (Debian 12 or 13)
