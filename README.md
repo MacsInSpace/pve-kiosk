@@ -20,7 +20,7 @@ Sharing an iGPU with LXC containers for Plex or Jellyfin transcoding is fine. Th
 On the Proxmox host, as root:
 
 ```sh
-git clone https://github.com/<you>/pve-kiosk.git
+git clone https://github.com/MacsInSpace/pve-kiosk.git
 cd pve-kiosk
 ./install.sh
 ```
@@ -100,7 +100,7 @@ How it fits together: [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md).
 
 ## Tested on
 
-- Proxmox VE 9.2 (Debian 13), Intel Raptor Lake iGPU shared with Plex and Immich LXCs
+- Proxmox VE 9.2 (Debian 13), Intel Raptor Lake iGPU, also shared with LXC containers for hardware transcoding
 
 Reports from other hardware and from Proxmox VE 8 are welcome.
 
