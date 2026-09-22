@@ -29,7 +29,7 @@ The screen switches to the web UI straight away, with no reboot needed. The kios
 
 | Option | What it does |
 | --- | --- |
-| `--url URL` | Open another page instead, such as a Grafana dashboard or Homepage |
+| `--url URL` | Open another page instead, such as `https://grafana.lan:3000/`. Full URL, port included |
 | `--no-restrict` | Let links go to any site. By default the browser can only open the kiosk page's own site |
 | `--scale N` | Zoom, e.g. `--scale 1.5` for a 4K screen |
 | `--no-start` | Install and enable, but don't take over the screen until the next boot |
@@ -54,7 +54,7 @@ Proxmox logs you out after two hours like it always does, and the kiosk goes bac
 Edit `/etc/pve-kiosk/kiosk.conf`, then `systemctl restart pve-kiosk`.
 
 ```sh
-PVE_KIOSK_URL=''          # empty = local web UI (picked to match your certificate)
+PVE_KIOSK_URL=''          # empty = local web UI; or a full URL, e.g. 'http://homepage.lan:3000/'
 PVE_KIOSK_RESTRICT='yes'  # only the kiosk page's own site
 PVE_KIOSK_ALLOW=''        # extra allowed sites, e.g. 'https://pve.proxmox.com'
 PVE_KIOSK_SCALE=''        # zoom factor, e.g. '1.5'
