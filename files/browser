@@ -1,0 +1,21 @@
+#!/bin/sh
+# pve-kiosk: Chromium, full screen, inside cage.
+browser=$(command -v chromium || command -v chromium-browser) || { echo "pve-kiosk: chromium not installed" >&2; exit 1; }
+
+set -- \
+  --kiosk \
+  --ozone-platform=wayland \
+  --noerrdialogs \
+  --disable-infobars \
+  --no-first-run \
+  --disable-session-crashed-bubble \
+  --password-store=basic \
+  --disable-features=TranslateUI,PasswordManager,AutofillServerCommunication,PasswordLeakDetection,SigninPromo \
+  --user-data-dir="$HOME/chromium"
+[ -n "$PVE_KIOSK_HOST_RULES" ] && set -- "$@" "--host-resolver-rules=$PVE_KIOSK_HOST_RULES"
+[ -n "$PVE_KIOSK_SCALE" ] && set -- "$@" "--force-device-scale-factor=$PVE_KIOSK_SCALE"
+[ "$PVE_KIOSK_GPU" = 0 ] && set -- "$@" --disable-gpu
+
+# CHROMIUM_FLAGS is unquoted on purpose so it can hold several flags.
+# shellcheck disable=SC2086
+exec "$browser" "$@" $CHROMIUM_FLAGS "$PVE_KIOSK_URL"

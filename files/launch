@@ -1,0 +1,12 @@
+#!/bin/sh
+# pve-kiosk: the service's main process, run as the kiosk user on tty1.
+# Loads what prestart worked out and starts the cage compositor.
+set -a
+# shellcheck source=/dev/null
+. /run/pve-kiosk/session.env
+set +a
+# -s lets Ctrl+Alt+F<n> switch to the text consoles. Without it there is no
+# local way to a shell while the kiosk is up.
+# CAGE_ARGS is unquoted on purpose so it can hold several flags.
+# shellcheck disable=SC2086
+exec /usr/bin/cage -s $CAGE_ARGS -- /usr/local/lib/pve-kiosk/browser

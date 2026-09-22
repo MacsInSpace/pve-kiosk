@@ -1,0 +1,152 @@
+#!/bin/bash
+# pve-kiosk: runs as root before every kiosk start (ExecStartPre=+).
+# Works out which URL to open, trusts the Proxmox CA for the kiosk user,
+# writes the Chromium policy and the environment the session reads.
+set -u
+
+CONF=/etc/pve-kiosk/kiosk.conf
+RUN=/run/pve-kiosk
+KIOSK_USER=pvekiosk
+POLICY=/etc/chromium/policies/managed/pve-kiosk.json
+PVE_CA=/etc/pve/pve-root-ca.pem
+PVE_CUSTOM_CERT=/etc/pve/local/pveproxy-ssl.pem
+
+PVE_KIOSK_URL=
+PVE_KIOSK_RESTRICT=yes
+PVE_KIOSK_ALLOW=
+PVE_KIOSK_SCALE=
+CAGE_ARGS=
+CHROMIUM_FLAGS=
+# shellcheck source=/dev/null
+[ -r "$CONF" ] && . "$CONF"
+
+log() { echo "pve-kiosk: $*"; }
+san_dns() { openssl x509 -in "$1" -noout -ext subjectAltName 2>/dev/null | tr ',' '\n' | sed -n 's/^ *DNS://p'; }
+# Single-quote a value for a file that is sourced by sh.
+q() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"; }
+
+home=$(getent passwd "$KIOSK_USER" | cut -d: -f6)
+[ -n "$home" ] || { log "user $KIOSK_USER is missing, re-run install.sh"; exit 1; }
+mkdir -p "$RUN"
+
+# 1. URL. The default self-signed certificate covers 127.0.0.1. A custom or ACME
+#    certificate only covers its hostnames, so open that name and resolve it locally.
+url=$PVE_KIOSK_URL
+host_rules=
+if [ -z "$url" ]; then
+  name=
+  if [ -r "$PVE_CUSTOM_CERT" ]; then
+    name=$(san_dns "$PVE_CUSTOM_CERT" | grep -v '^\*' | head -n1)
+    if [ -z "$name" ]; then
+      wild=$(san_dns "$PVE_CUSTOM_CERT" | sed -n 's/^\*\.//p' | head -n1)
+      [ -n "$wild" ] && name="$(hostname -s).$wild"
+    fi
+  fi
+  if [ -n "$name" ]; then
+    url="https://$name:8006/"
+    host_rules="MAP $name 127.0.0.1"
+    log "custom certificate for $name, opening $url via 127.0.0.1"
+  else
+    url="https://127.0.0.1:8006/"
+  fi
+fi
+origin=$(printf '%s' "$url" | sed -E 's#^([A-Za-z]+://[^/]+).*#\1#')
+case "$origin" in
+  https://127.0.0.1:8006|https://localhost:8006) is_local=1 ;;
+  *) [ -n "$host_rules" ] && is_local=1 || is_local=0 ;;
+esac
+
+# 2. Trust the cluster CA in the kiosk user's NSS database. Done on every start
+#    so a regenerated CA (pvecm updatecerts --force) is picked up by a restart.
+nss="$home/.pki/nssdb"
+install -d -o "$KIOSK_USER" -g "$KIOSK_USER" -m 0700 "$home/.pki" "$nss"
+# $1 is expanded by the inner sh, not here.
+# shellcheck disable=SC2016
+runuser -u "$KIOSK_USER" -- sh -c '[ -f "$1/cert9.db" ] || certutil -d "sql:$1" -N --empty-password' _ "$nss"
+if [ -r "$PVE_CA" ]; then
+  runuser -u "$KIOSK_USER" -- certutil -d "sql:$nss" -D -n "Proxmox VE root CA" >/dev/null 2>&1
+  # certutil reopens its input by path, so hand it a copy the kiosk user can read.
+  install -m 0644 "$PVE_CA" "$RUN/pve-root-ca.pem"
+  runuser -u "$KIOSK_USER" -- certutil -d "sql:$nss" -A -t "C,," -n "Proxmox VE root CA" -i "$RUN/pve-root-ca.pem" ||
+    log "could not import $PVE_CA, the page may show a certificate warning"
+  rm -f "$RUN/pve-root-ca.pem"
+fi
+
+# 3. Wait for pveproxy so the first page load is not a connection error.
+if [ "$is_local" = 1 ]; then
+  for _ in $(seq 30); do
+    (exec 3<>/dev/tcp/127.0.0.1/8006) 2>/dev/null && break
+    sleep 1
+  done
+fi
+
+# 4. Chromium policy.
+allow=
+add_allow() {
+  case "$1" in *[\"\\]*) log "ignoring allow entry with a quote or backslash: $1"; return ;; esac
+  case ", $allow," in *", \"$1\","*) return ;; esac
+  allow="$allow${allow:+, }\"$1\""
+}
+if [ "$PVE_KIOSK_RESTRICT" = yes ]; then
+  add_allow "$origin"
+  [ "$is_local" = 1 ] && { add_allow "https://127.0.0.1:8006"; add_allow "https://localhost:8006"; }
+  for a in $PVE_KIOSK_ALLOW; do add_allow "$a"; done
+  url_rules="\"URLBlocklist\": [\"*\"],
+  \"URLAllowlist\": [$allow],"
+else
+  url_rules='"URLBlocklist": ["chrome://settings", "chrome://password-manager"],'
+fi
+mkdir -p "$(dirname "$POLICY")"
+cat >"$POLICY.tmp" <<JSON
+{
+  "_comment": "Written by pve-kiosk on every kiosk start. Edit /etc/pve-kiosk/kiosk.conf instead.",
+  $url_rules
+  "PasswordManagerEnabled": false,
+  "PasswordLeakDetectionEnabled": false,
+  "AutofillAddressEnabled": false,
+  "AutofillCreditCardEnabled": false,
+  "BrowserSignin": 0,
+  "SyncDisabled": true,
+  "PromotionalTabsEnabled": false,
+  "MetricsReportingEnabled": false,
+  "SearchSuggestEnabled": false,
+  "TranslateEnabled": false,
+  "DefaultBrowserSettingEnabled": false,
+  "BackgroundModeEnabled": false,
+  "SpellcheckEnabled": false,
+  "DefaultNotificationsSetting": 2,
+  "DefaultGeolocationSetting": 2
+}
+JSON
+chmod 0644 "$POLICY.tmp" && mv -f "$POLICY.tmp" "$POLICY"
+
+# 5. Display and keyboard. No render node means no usable GPU: software rendering.
+gpu=1
+ls /dev/dri/card* >/dev/null 2>&1 || { log "no /dev/dri/card* display device, cage cannot start"; exit 1; }
+ls /dev/dri/renderD* >/dev/null 2>&1 || { gpu=0; log "no GPU render node, using software rendering"; }
+
+env_file="$RUN/session.env"
+{
+  echo "PVE_KIOSK_URL=$(q "$url")"
+  echo "PVE_KIOSK_HOST_RULES=$(q "$host_rules")"
+  echo "PVE_KIOSK_SCALE=$(q "$PVE_KIOSK_SCALE")"
+  echo "PVE_KIOSK_GPU=$gpu"
+  echo "CAGE_ARGS=$(q "$CAGE_ARGS")"
+  echo "CHROMIUM_FLAGS=$(q "$CHROMIUM_FLAGS")"
+  [ "$gpu" = 0 ] && echo "WLR_RENDERER=pixman"
+  # Console keyboard layout, as set by dpkg-reconfigure keyboard-configuration.
+  if [ -r /etc/default/keyboard ]; then
+    (
+      # shellcheck source=/dev/null
+      . /etc/default/keyboard
+      [ -n "${XKBMODEL:-}" ] && echo "XKB_DEFAULT_MODEL=$(q "$XKBMODEL")"
+      [ -n "${XKBLAYOUT:-}" ] && echo "XKB_DEFAULT_LAYOUT=$(q "$XKBLAYOUT")"
+      [ -n "${XKBVARIANT:-}" ] && echo "XKB_DEFAULT_VARIANT=$(q "$XKBVARIANT")"
+      [ -n "${XKBOPTIONS:-}" ] && echo "XKB_DEFAULT_OPTIONS=$(q "$XKBOPTIONS")"
+    )
+  fi
+} >"$env_file"
+chown "$KIOSK_USER:" "$env_file"
+chmod 0644 "$env_file"
+log "opening $url"
+exit 0
