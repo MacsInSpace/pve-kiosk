@@ -14,7 +14,13 @@ On the Proxmox host, as root:
 git clone https://github.com/MacsInSpace/pve-kiosk.git && cd pve-kiosk && ./install.sh
 ```
 
-No `git` on a fresh Proxmox install? Run `apt install git` first. Options and details are under [Install](#install).
+Or with `curl`, which every Proxmox install has (no `git` needed):
+
+```sh
+curl -fsSL https://github.com/MacsInSpace/pve-kiosk/archive/refs/heads/main.tar.gz | tar xz && cd pve-kiosk-main && ./install.sh
+```
+
+Options and details are under [Install](#install).
 
 ## Requirements
 
