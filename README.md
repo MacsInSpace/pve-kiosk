@@ -24,10 +24,10 @@ Options and details are under [Install](#install).
 
 ## Requirements
 
-- Proxmox VE 8 or 9 (Debian 12 or 13)
-- A GPU the host can use: integrated Intel/AMD graphics or a basic onboard chip. A GPU that's passed through to a VM (vfio) belongs to the VM, not the host.
-- No desktop login manager (gdm, lightdm, sddm) enabled on the host
-- Internet access for `apt` (installs `cage`, `chromium` and about 55 dependencies, roughly 350 MB)
+ Proxmox VE 8 or 9 (Debian 12 or 13)
+ A GPU the host can use: integrated Intel/AMD graphics or a basic onboard chip. A GPU that's passed through to a VM (vfio) belongs to the VM, not the host.
+ No desktop login manager (gdm, lightdm, sddm) enabled on the host
+ Internet access for `apt` (installs `cage`, `chromium` and about 55 dependencies, roughly 350 MB)
 
 Sharing an iGPU with LXC containers for Plex or Jellyfin transcoding is fine. The host keeps the i915/amdgpu driver and the kiosk shares the card with them.
 
@@ -82,8 +82,8 @@ CHROMIUM_FLAGS=''         # anything else for Chromium
 
 You shouldn't see a certificate warning:
 
-- **Default self-signed certificate**: the kiosk opens `https://127.0.0.1:8006` and trusts your cluster's own CA (`/etc/pve/pve-root-ca.pem`), for the kiosk user only.
-- **Custom or ACME (Let's Encrypt) certificate**: the kiosk opens `https://<name on the certificate>:8006` and resolves that name to 127.0.0.1 inside the browser. It works without DNS and without internet.
+ **Default self-signed certificate**: the kiosk opens `https://127.0.0.1:8006` and trusts your cluster's own CA (`/etc/pve/pve-root-ca.pem`), for the kiosk user only.
+ **Custom or ACME (Let's Encrypt) certificate**: the kiosk opens `https://<name on the certificate>:8006` and resolves that name to 127.0.0.1 inside the browser. It works without DNS and without internet.
 
 Both are rechecked every time the kiosk starts, so a renewed or regenerated certificate only needs `systemctl restart pve-kiosk`.
 
@@ -98,10 +98,10 @@ The packages are left installed. `apt-get remove cage chromium && apt-get autore
 
 ## Security
 
-- The kiosk shows a login page. Anyone at the keyboard still needs a Proxmox username and password, just as they do at the text console. It never logs in automatically.
-- Chromium runs as `pvekiosk`, a system user that can't log in, with no sudo and no access to `/etc/pve`. A small root step (`prestart`) runs before each start to read the certificates and write the browser policy.
-- A managed Chromium policy switches off password saving, autofill, sign-in and sync, and by default blocks every site except the Proxmox UI.
-- Physical access to a server has always meant full access to it. This doesn't change that, and it doesn't make it worse.
+ The kiosk shows a login page. Anyone at the keyboard still needs a Proxmox username and password, just as they do at the text console. It never logs in automatically.
+ Chromium runs as `pvekiosk`, a system user that can't log in, with no sudo and no access to `/etc/pve`. A small root step (`prestart`) runs before each start to read the certificates and write the browser policy.
+ A managed Chromium policy switches off password saving, autofill, sign-in and sync, and by default blocks every site except the Proxmox UI.
+ Physical access to a server has always meant full access to it. This doesn't change that, and it doesn't make it worse.
 
 ## Troubleshooting
 
@@ -116,7 +116,7 @@ How it fits together: [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md).
 
 ## Tested on
 
-- Proxmox VE 9.2 (Debian 13), Intel Raptor Lake iGPU, also shared with LXC containers for hardware transcoding
+ Proxmox VE 9.2 (Debian 13), Intel Raptor Lake iGPU, also shared with LXC containers for hardware transcoding
 
 Reports from other hardware and from Proxmox VE 8 are welcome.
 
